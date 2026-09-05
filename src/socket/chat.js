@@ -1,5 +1,5 @@
 /**
- * Appointment-scoped ephemeral chat.
+ * Appointment-scoped chat.
  * Events: chat:join, chat:message, chat:leave
  */
 function registerChat(io, socket) {
@@ -36,6 +36,9 @@ function registerChat(io, socket) {
     if (text.length > 2000) return;
 
     const room = `appointment:${appointmentId}`;
+    // Ensure sender is in the room (covers race before chat:join lands)
+    socket.join(room);
+
     const message = {
       id: payload.id || undefined,
       appointmentId,
