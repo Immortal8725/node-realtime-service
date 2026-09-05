@@ -1,8 +1,8 @@
-# DigiMed Connect — Realtime Service
+# DigiMed Connect - Realtime Service
 
 Socket.IO chat/notifications + internal OTP delivery for DigiMed / Forge Health.
 
-## Run
+## Run locally
 
 ```bash
 cp .env.example .env
@@ -12,6 +12,46 @@ npm start
 ```
 
 Default: `http://localhost:4001`
+
+## Deploy on Railway
+
+1. Open [Railway](https://railway.app) → **New Project** → **Deploy from GitHub**
+2. Select repo `Immortal8725/node-realtime-service`
+3. Railway builds with the included `Dockerfile` (`railway.json`)
+4. **Networking** → Generate Domain (e.g. `https://….up.railway.app`)
+5. **Variables** tab — set:
+
+| Variable | Value |
+|----------|--------|
+| `NODE_ENV` | `production` |
+| `JWT_SECRET` | Same ≥64-char secret as Spring `JWT_SECRET` |
+| `INTERNAL_API_KEY` | Same key as Spring `REALTIME_INTERNAL_API_KEY` |
+| `CORS_ORIGINS` | FE origins, comma-separated (e.g. `https://www.digimed-connect.co.za,https://digimed-connect.co.za`) |
+| `OTP_DEBUG_MODE` | `false` (required; `true` is blocked in production) |
+| `PORT` | Leave unset (Railway injects it) |
+
+Optional: Railway Redis plugin → set `REDIS_URL` for multi-replica Socket.IO.
+
+6. Health check: `GET https://YOUR-RAILWAY-HOST/health` → `{ "status": "ok" }`
+
+### Wire DigiMed to Railway
+
+**Frontend:**
+
+```text
+REACT_APP_REALTIME_URL=https://YOUR-RAILWAY-HOST
+```
+
+**Spring backend:**
+
+```text
+REALTIME_ENABLED=true
+REALTIME_BASE_URL=https://YOUR-RAILWAY-HOST
+REALTIME_INTERNAL_API_KEY=<same as INTERNAL_API_KEY>
+JWT_SECRET=<same as realtime JWT_SECRET>
+```
+
+Redeploy FE + BE after changing env.
 
 ## Endpoints
 
@@ -24,10 +64,8 @@ Default: `http://localhost:4001`
 
 ## Socket.IO
 
-Connect with DigiMed JWT:
-
 ```js
-io("http://localhost:4001", { auth: { token: localStorage.token } })
+io("https://YOUR-RAILWAY-HOST", { auth: { token: localStorage.token } })
 ```
 
 ### Rooms / events
@@ -38,16 +76,10 @@ io("http://localhost:4001", { auth: { token: localStorage.token } })
 - `notify:subscribe` → joins `user:{userId}` and `tenant:{tenantId}`
 - Server push: `notify:event`
 
-## Multi-instance (Redis)
-
-Set `REDIS_URL` (e.g. `redis://127.0.0.1:6379`) to enable `@socket.io/redis-adapter`.
-Without it, the service runs single-node (fine for local/dev).
-`GET /health` reports `redisAdapter: true|false`.
-
-## Env
+## Env summary
 
 - `JWT_SECRET` — must match Spring
-- `INTERNAL_API_KEY` — Spring → this service only (≥ 16 chars)
-- `REDIS_URL` — optional; enables HA fan-out across replicas
-- `OTP_DEBUG_MODE` — if true, OTP responses include raw code (**forbidden when `NODE_ENV=production`**)
+- `INTERNAL_API_KEY` — Spring → this service (≥ 16 chars)
+- `REDIS_URL` — optional HA
+- `OTP_DEBUG_MODE` — forbidden when `NODE_ENV=production` if `true`
 - `CORS_ORIGINS` — comma-separated FE origins

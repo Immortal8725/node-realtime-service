@@ -116,8 +116,8 @@ async function setupRedisAdapter() {
 
 async function start() {
   await setupRedisAdapter();
-  server.listen(PORT, () => {
-    console.info(`[realtime] listening on :${PORT}`);
+  server.listen(PORT, "0.0.0.0", () => {
+    console.info(`[realtime] listening on 0.0.0.0:${PORT}`);
     console.info(`[realtime] CORS origins: ${origins.join(", ")}`);
   });
 }
