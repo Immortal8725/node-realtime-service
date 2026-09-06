@@ -8,7 +8,7 @@ router.use(requireInternalKey);
 
 /**
  * POST /internal/otp/send
- * body: { channel, to, purpose, tenantId, message? }
+ * body: { channel, to, purpose, tenantId, message?, code? }
  */
 router.post("/send", async (req, res) => {
   try {

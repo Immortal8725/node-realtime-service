@@ -30,6 +30,29 @@ Default: `http://localhost:4001`
 | `OTP_DEBUG_MODE` | `false` (required; `true` is blocked in production) |
 | `PORT` | Leave unset (Railway injects it) |
 
+### OTP delivery (optional but needed for real WhatsApp/email)
+
+**Email (SMTP):**
+
+| Variable | Example |
+|----------|---------|
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_SECURE` | `false` (or `true` for 465) |
+| `SMTP_USER` | mailbox user |
+| `SMTP_PASS` | app password / SMTP secret |
+| `SMTP_FROM` | `DigiMed Connect <noreply@digimed-connect.co.za>` |
+
+**WhatsApp — pick one:**
+
+| Provider | Variables |
+|----------|-----------|
+| Twilio | `WHATSAPP_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM=whatsapp:+1…` |
+| Meta Cloud | `WHATSAPP_PROVIDER=meta`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, optional `WHATSAPP_TEMPLATE_NAME` + `WHATSAPP_TEMPLATE_LANG` |
+| Generic HTTP | `WHATSAPP_API_URL`, `WHATSAPP_API_TOKEN` |
+
+Without these, OTP send returns `stubbed` (logged only). Spring can still pass `code` so the delivered digits match Paperless verify.
+
 Optional: Railway Redis plugin → set `REDIS_URL` for multi-replica Socket.IO.
 
 6. Health check: `GET https://YOUR-RAILWAY-HOST/health` → `{ "status": "ok" }`
@@ -83,3 +106,5 @@ io("https://YOUR-RAILWAY-HOST", { auth: { token: localStorage.token } })
 - `REDIS_URL` — optional HA
 - `OTP_DEBUG_MODE` — forbidden when `NODE_ENV=production` if `true`
 - `CORS_ORIGINS` — comma-separated FE origins
+- `SMTP_*` — email OTP
+- `WHATSAPP_PROVIDER` / Twilio / Meta / generic — WhatsApp OTP

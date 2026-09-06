@@ -26,17 +26,39 @@ function generateOtp() {
 }
 
 function storageKey({ purpose, to, tenantId }) {
-  return `${purpose || "generic"}:${tenantId || "x"}:${String(to).trim()}`;
+  return `${purpose || "generic"}:${tenantId || "x"}:${String(to).trim().toLowerCase()}`;
 }
 
-async function sendOtp({ channel = "whatsapp", to, purpose = "generic", tenantId, message }) {
+/**
+ * Send OTP via email and/or WhatsApp.
+ * body: { channel, to, purpose, tenantId, message?, code? }
+ * If `code` is provided (Spring Paperless), that exact code is delivered and stored for verify.
+ */
+async function sendOtp({
+  channel = "whatsapp",
+  to,
+  purpose = "generic",
+  tenantId,
+  message,
+  code: providedCode,
+}) {
   if (!to) {
     const err = new Error("to is required");
     err.status = 400;
     throw err;
   }
 
-  const code = generateOtp();
+  const code =
+    providedCode && String(providedCode).trim()
+      ? String(providedCode).trim()
+      : generateOtp();
+
+  if (!/^\d{4,8}$/.test(code)) {
+    const err = new Error("code must be 4-8 digits when provided");
+    err.status = 400;
+    throw err;
+  }
+
   const key = storageKey({ purpose, to, tenantId });
   pending.set(key, {
     hash: hashOtp(code),
@@ -45,22 +67,35 @@ async function sendOtp({ channel = "whatsapp", to, purpose = "generic", tenantId
     meta: { channel, purpose, tenantId },
   });
 
+  const mins = Math.max(1, Math.floor(ttlSeconds() / 60));
   const body =
     message ||
-    `DigiMed Connect verification code: ${code}. Valid for ${Math.floor(ttlSeconds() / 60)} minutes.`;
+    `DigiMed Connect verification code: ${code}. Valid for ${mins} minutes. Do not share this code.`;
 
-  let delivery = { channel, status: "stubbed" };
-  const ch = String(channel).toLowerCase();
+  const ch = String(channel || "whatsapp").toLowerCase();
+  let delivery;
+
   if (ch === "email") {
-    delivery = await emailService.send({ to, subject: "Your DigiMed verification code", text: body });
+    delivery = await emailService.send({
+      to,
+      subject: "Your DigiMed verification code",
+      text: body,
+      html: `<p>Your DigiMed Connect verification code is:</p>
+             <p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p>
+             <p>Valid for ${mins} minutes. Do not share this code.</p>`,
+    });
   } else if (ch === "whatsapp" || ch === "sms") {
     delivery = await whatsappService.send({ to, text: body });
+  } else if (ch === "both") {
+    // Split "to" as phone|email not supported; use dedicated fields via callers
+    delivery = { channel: "both", status: "error", detail: "use separate send calls" };
   } else {
-    console.info(`[otp] channel=${ch} to=${to} purpose=${purpose} (logged only)`);
+    console.info(`[otp] unknown channel=${ch} to=${to}`);
+    delivery = { channel: ch, status: "stubbed" };
   }
 
   const out = {
-    otpSent: true,
+    otpSent: delivery.status === "sent" || delivery.status === "stubbed",
     expiresIn: ttlSeconds(),
     delivery,
   };

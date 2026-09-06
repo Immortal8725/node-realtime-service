@@ -1,18 +1,68 @@
 /**
- * Email delivery. Uses SMTP env when configured; otherwise stubs to console.
+ * Email delivery via SMTP (nodemailer).
+ *
+ * Env:
+ *   SMTP_HOST, SMTP_PORT (default 587), SMTP_SECURE (true|false)
+ *   SMTP_USER, SMTP_PASS, SMTP_FROM
  */
-async function send({ to, subject, text }) {
+const nodemailer = require("nodemailer");
+
+let transporter = null;
+
+function getTransporter() {
   const host = process.env.SMTP_HOST;
-  if (!host) {
-    console.info(`[email:stub] to=${to} subject=${subject} text=${text}`);
-    return { channel: "email", status: "stubbed" };
+  if (!host) return null;
+  if (transporter) return transporter;
+
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure =
+    String(process.env.SMTP_SECURE || "").toLowerCase() === "true" || port === 465;
+
+  transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth:
+      process.env.SMTP_USER && process.env.SMTP_PASS
+        ? {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          }
+        : undefined,
+  });
+  return transporter;
+}
+
+async function send({ to, subject, text, html }) {
+  const tx = getTransporter();
+  if (!tx) {
+    console.info(`[email:stub] to=${to} subject=${subject}`);
+    return { channel: "email", status: "stubbed", reason: "SMTP_HOST not set" };
   }
 
-  // Lightweight SMTP via nodemailer is optional; avoid hard dep if unset.
-  // When SMTP_* is set, operators can add nodemailer later. For now log + mark configured.
-  console.info(`[email:configured-but-nodemailer-not-bundled] to=${to} subject=${subject}`);
-  console.info(`[email] Install nodemailer and extend emailService.js for live SMTP. Body: ${text}`);
-  return { channel: "email", status: "logged_pending_smtp_client" };
+  const from =
+    process.env.SMTP_FROM ||
+    process.env.SMTP_USER ||
+    "noreply@digimed-connect.co.za";
+
+  try {
+    const info = await tx.sendMail({
+      from,
+      to,
+      subject: subject || "DigiMed Connect verification",
+      text,
+      html: html || undefined,
+    });
+    console.info(`[email] sent to=${to} id=${info.messageId || "?"}`);
+    return {
+      channel: "email",
+      status: "sent",
+      messageId: info.messageId || null,
+    };
+  } catch (e) {
+    console.error("[email] send failed", e.message);
+    return { channel: "email", status: "error", detail: e.message };
+  }
 }
 
 module.exports = { send };
