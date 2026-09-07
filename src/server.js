@@ -40,10 +40,23 @@ app.use((req, res, next) => {
 let redisEnabled = false;
 
 app.get("/health", (_req, res) => {
+  const smtpConfigured = Boolean(process.env.SMTP_HOST);
+  const waProvider = String(process.env.WHATSAPP_PROVIDER || "").toLowerCase().trim();
+  let whatsapp = "stub";
+  if (waProvider === "twilio" || process.env.TWILIO_ACCOUNT_SID) whatsapp = "twilio";
+  else if (waProvider === "meta" || process.env.WHATSAPP_PHONE_NUMBER_ID) whatsapp = "meta";
+  else if (process.env.WHATSAPP_API_URL && process.env.WHATSAPP_API_TOKEN) whatsapp = "generic";
+
   res.json({
     status: "ok",
     service: "node-realtime-service",
     redisAdapter: redisEnabled,
+    delivery: {
+      email: smtpConfigured ? "smtp" : "stub",
+      whatsapp,
+      internalKeyConfigured: Boolean(process.env.INTERNAL_API_KEY && process.env.INTERNAL_API_KEY.length >= 16),
+      otpDebugMode: String(process.env.OTP_DEBUG_MODE || "false").toLowerCase() === "true",
+    },
     time: new Date().toISOString(),
   });
 });
