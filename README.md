@@ -30,7 +30,17 @@ Default: `http://localhost:4001`
 | `OTP_DEBUG_MODE` | `false` (required; `true` is blocked in production) |
 | `PORT` | Leave unset (Railway injects it) |
 
-### OTP delivery (optional but needed for real WhatsApp/email)
+### OTP delivery (optional but needed for real SMS/WhatsApp/email)
+
+**SMS (Twilio)** — used when Spring `OTP_PHONE_CHANNEL=sms` (default):
+
+| Variable | Example |
+|----------|---------|
+| `TWILIO_ACCOUNT_SID` | `AC…` from Twilio Console |
+| `TWILIO_AUTH_TOKEN` | Auth token |
+| `TWILIO_SMS_FROM` | E.164 sender, e.g. `+18005551234` (bought/verified Twilio number) |
+
+`GET /health` shows `delivery.sms: "twilio"` when these are set.
 
 **Email (SMTP):**
 
@@ -43,12 +53,12 @@ Default: `http://localhost:4001`
 | `SMTP_PASS` | app password / SMTP secret |
 | `SMTP_FROM` | `DigiMed Connect <noreply@digimed-connect.co.za>` |
 
-**WhatsApp — pick one:**
+**WhatsApp — pick one** (when Spring `OTP_PHONE_CHANNEL=whatsapp`):
 
 | Provider | Variables |
 |----------|-----------|
 | **Baileys** (clinic WhatsApp Web) | `WHATSAPP_PROVIDER=baileys`, optional `BAILEYS_AUTH_DIR=./data/baileys-auth`, `BAILEYS_PRINT_QR=true` |
-| Twilio | `WHATSAPP_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM=whatsapp:+1…` |
+| Twilio WhatsApp | `WHATSAPP_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM=whatsapp:+1…` |
 | Meta Cloud | `WHATSAPP_PROVIDER=meta`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, optional `WHATSAPP_TEMPLATE_NAME` + `WHATSAPP_TEMPLATE_LANG` |
 | Generic HTTP | `WHATSAPP_API_URL`, `WHATSAPP_API_TOKEN` |
 
@@ -80,6 +90,7 @@ REALTIME_ENABLED=true
 REALTIME_BASE_URL=https://YOUR-RAILWAY-HOST
 REALTIME_INTERNAL_API_KEY=<same as INTERNAL_API_KEY>
 JWT_SECRET=<same as realtime JWT_SECRET>
+OTP_PHONE_CHANNEL=sms
 ```
 
 Redeploy FE + BE after changing env.
@@ -116,5 +127,6 @@ io("https://YOUR-RAILWAY-HOST", { auth: { token: localStorage.token } })
 - `OTP_DEBUG_MODE` — forbidden when `NODE_ENV=production` if `true`
 - `CORS_ORIGINS` — comma-separated FE origins
 - `SMTP_*` — email OTP
+- `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_SMS_FROM` — Twilio SMS OTP
 - `WHATSAPP_PROVIDER` / Baileys / Twilio / Meta / generic — WhatsApp OTP
 - `BAILEYS_AUTH_DIR` / `BAILEYS_PRINT_QR` — when provider is `baileys`

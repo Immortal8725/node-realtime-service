@@ -48,8 +48,17 @@ app.get("/health", (_req, res) => {
   else if (waProvider === "meta" || process.env.WHATSAPP_PHONE_NUMBER_ID) whatsapp = "meta";
   else if (process.env.WHATSAPP_API_URL && process.env.WHATSAPP_API_TOKEN) whatsapp = "generic";
 
+  let sms = "stub";
+  try {
+    const smsService = require("./services/smsService");
+    if (smsService.isConfigured()) sms = "twilio";
+  } catch (_) {
+    /* ignore */
+  }
+
   const delivery = {
     email: smtpConfigured ? "smtp" : "stub",
+    sms,
     whatsapp,
     internalKeyConfigured: Boolean(process.env.INTERNAL_API_KEY && process.env.INTERNAL_API_KEY.length >= 16),
     otpDebugMode: String(process.env.OTP_DEBUG_MODE || "false").toLowerCase() === "true",

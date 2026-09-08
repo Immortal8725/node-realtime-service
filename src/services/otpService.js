@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const emailService = require("./emailService");
+const smsService = require("./smsService");
 const whatsappService = require("./whatsappService");
 
 const pending = new Map(); // key -> { hash, createdAt, attempts, meta }
@@ -30,9 +31,9 @@ function storageKey({ purpose, to, tenantId }) {
 }
 
 /**
- * Send OTP via email and/or WhatsApp.
+ * Send OTP via email, SMS (Twilio), or WhatsApp.
  * body: { channel, to, purpose, tenantId, message?, code? }
- * If `code` is provided (Spring Paperless), that exact code is delivered and stored for verify.
+ * If `code` is provided (Spring), that exact code is delivered and stored for verify.
  */
 async function sendOtp({
   channel = "whatsapp",
@@ -84,7 +85,9 @@ async function sendOtp({
              <p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p>
              <p>Valid for ${mins} minutes. Do not share this code.</p>`,
     });
-  } else if (ch === "whatsapp" || ch === "sms") {
+  } else if (ch === "sms") {
+    delivery = await smsService.send({ to, text: body });
+  } else if (ch === "whatsapp") {
     delivery = await whatsappService.send({ to, text: body });
   } else if (ch === "both") {
     // Split "to" as phone|email not supported; use dedicated fields via callers
