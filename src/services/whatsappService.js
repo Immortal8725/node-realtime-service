@@ -2,6 +2,7 @@
  * WhatsApp / SMS delivery.
  *
  * Providers (WHATSAPP_PROVIDER):
+ *   - baileys → clinic WhatsApp Web session (@whiskeysockets/baileys)
  *   - twilio  → TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM (e.g. whatsapp:+14155238886)
  *   - meta    → Meta Cloud API: WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID
  *   - generic → WHATSAPP_API_URL + WHATSAPP_API_TOKEN (JSON POST { to, message })
@@ -170,6 +171,10 @@ async function send({ to, text }) {
   const provider = String(process.env.WHATSAPP_PROVIDER || "").toLowerCase().trim();
 
   try {
+    if (provider === "baileys") {
+      const baileysService = require("./baileysService");
+      return await baileysService.send({ to, text });
+    }
     if (provider === "twilio" || (!provider && process.env.TWILIO_ACCOUNT_SID)) {
       return await sendTwilio({ to, text });
     }
@@ -179,7 +184,9 @@ async function send({ to, text }) {
     if (process.env.WHATSAPP_API_URL && process.env.WHATSAPP_API_TOKEN) {
       return await sendGeneric({ to, text });
     }
-    console.info(`[whatsapp:stub] to=${to} (set WHATSAPP_PROVIDER=twilio|meta or WHATSAPP_API_URL)`);
+    console.info(
+      `[whatsapp:stub] to=${to} (set WHATSAPP_PROVIDER=baileys|twilio|meta or WHATSAPP_API_URL)`
+    );
     return { channel: "whatsapp", status: "stubbed", reason: "no provider configured" };
   } catch (e) {
     console.error("[whatsapp] send failed", e.message);

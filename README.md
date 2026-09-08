@@ -47,11 +47,19 @@ Default: `http://localhost:4001`
 
 | Provider | Variables |
 |----------|-----------|
+| **Baileys** (clinic WhatsApp Web) | `WHATSAPP_PROVIDER=baileys`, optional `BAILEYS_AUTH_DIR=./data/baileys-auth`, `BAILEYS_PRINT_QR=true` |
 | Twilio | `WHATSAPP_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM=whatsapp:+1…` |
 | Meta Cloud | `WHATSAPP_PROVIDER=meta`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, optional `WHATSAPP_TEMPLATE_NAME` + `WHATSAPP_TEMPLATE_LANG` |
 | Generic HTTP | `WHATSAPP_API_URL`, `WHATSAPP_API_TOKEN` |
 
-Without these, OTP send returns `stubbed` (logged only). Spring can still pass `code` so the delivered digits match Paperless verify.
+#### Baileys setup
+
+1. Set `WHATSAPP_PROVIDER=baileys` and start the service.
+2. Scan the QR printed in the console, or fetch it from `GET /internal/whatsapp/status` with header `X-Internal-Key`.
+3. Persist `BAILEYS_AUTH_DIR` (volume on Railway/VPS). Use **one replica** — one WhatsApp session per process.
+4. `GET /health` shows `delivery.whatsapp: "baileys"` and `delivery.baileys.connected`.
+
+Without a provider, OTP send returns `stubbed` (logged only). Spring can still pass `code` so the delivered digits match Paperless verify.
 
 Optional: Railway Redis plugin → set `REDIS_URL` for multi-replica Socket.IO.
 
@@ -83,6 +91,7 @@ Redeploy FE + BE after changing env.
 | GET | `/health` | public |
 | POST | `/internal/otp/send` | `X-Internal-Key` |
 | POST | `/internal/otp/verify` | `X-Internal-Key` |
+| GET | `/internal/whatsapp/status` | `X-Internal-Key` (Baileys QR / link status) |
 | POST | `/internal/notify` | `X-Internal-Key` |
 
 ## Socket.IO
@@ -107,4 +116,5 @@ io("https://YOUR-RAILWAY-HOST", { auth: { token: localStorage.token } })
 - `OTP_DEBUG_MODE` — forbidden when `NODE_ENV=production` if `true`
 - `CORS_ORIGINS` — comma-separated FE origins
 - `SMTP_*` — email OTP
-- `WHATSAPP_PROVIDER` / Twilio / Meta / generic — WhatsApp OTP
+- `WHATSAPP_PROVIDER` / Baileys / Twilio / Meta / generic — WhatsApp OTP
+- `BAILEYS_AUTH_DIR` / `BAILEYS_PRINT_QR` — when provider is `baileys`
