@@ -6,9 +6,9 @@ RUN npm ci --omit=dev || npm install --omit=dev
 
 COPY src ./src
 
-# Persist Baileys session outside the image (mount a volume at runtime)
+# Session files live here. Railway rejects Dockerfile VOLUME; attach a
+# Railway Volume at /app/data/baileys-auth in the service settings to persist them.
 RUN mkdir -p /app/data/baileys-auth
-VOLUME ["/app/data/baileys-auth"]
 
 ENV NODE_ENV=production
 ENV PORT=4001
