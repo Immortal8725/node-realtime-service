@@ -38,7 +38,17 @@ function verifyToken(token) {
     tenantId: payload.tenantId != null ? Number(payload.tenantId) : null,
     roles,
     userId: payload.userId != null ? Number(payload.userId) : null,
+    appointmentId: boundedAppointmentClaim(payload.appointmentId),
+    appointmentIds: Array.isArray(payload.appointmentIds)
+      ? payload.appointmentIds.map(boundedAppointmentClaim).filter((id) => id != null).slice(0, 50)
+      : [],
   };
+}
+
+function boundedAppointmentClaim(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.length <= 64) return value;
+  return null;
 }
 
 /** Express middleware: Authorization Bearer JWT */

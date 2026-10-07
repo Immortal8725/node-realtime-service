@@ -1,6 +1,6 @@
 {
   "name": "node-realtime-service",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "DigiMed Connect realtime: Socket.IO chat/notifications + OTP delivery",
   "main": "src/server.js",
@@ -25,5 +25,8 @@
     "nodemailer": "^10.0.16",
     "qrcode-terminal": "^0.12.0",
     "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
   }
 }
