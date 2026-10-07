@@ -10,6 +10,30 @@
  * Phone numbers should be E.164 (+27...) when possible.
  */
 
+const logger = require("../logger");
+
+function providerErrorMessage(parsed) {
+  if (!parsed || typeof parsed !== "object") return "";
+  if (typeof parsed.message === "string" && parsed.message) return parsed.message;
+  if (typeof parsed.error === "string" && parsed.error) return parsed.error;
+  if (parsed.error && typeof parsed.error.message === "string") return parsed.error.message;
+  return "";
+}
+
+function providerErrorDetail(raw, status) {
+  try {
+    const parsed = JSON.parse(raw);
+    const message = providerErrorMessage(parsed);
+    const code = parsed.code || parsed.error?.code;
+    if (message || code) {
+      return `provider error ${code || status}: ${message || "request failed"}`.slice(0, 300);
+    }
+  } catch (_) {
+    /* plain text */
+  }
+  return logger.redactString(String(raw || "")).slice(0, 300);
+}
+
 function normalizeWhatsAppTo(to, { twilioPrefix = false } = {}) {
   let n = String(to || "").trim().replace(/\s+/g, "");
   if (!n) return n;
@@ -65,8 +89,9 @@ async function sendTwilio({ to, text }) {
 
   const raw = await res.text();
   if (!res.ok) {
-    console.error(`[whatsapp:twilio] ${res.status} ${raw}`);
-    return { channel: "whatsapp", status: "error", code: res.status, detail: raw.slice(0, 300) };
+    const detail = providerErrorDetail(raw, res.status);
+    logger.error({ provider: "twilio", status: res.status, detail }, "whatsapp send failed");
+    return { channel: "whatsapp", status: "error", code: res.status, detail };
   }
   let sidOut = null;
   try {
@@ -74,7 +99,10 @@ async function sendTwilio({ to, text }) {
   } catch (_) {
     /* ignore */
   }
-  console.info(`[whatsapp:twilio] sent to=${bodyTo} sid=${sidOut || "?"}`);
+  logger.info(
+    { provider: "twilio", to: logger.maskDestination(bodyTo), sid: sidOut || null },
+    "whatsapp sent"
+  );
   return { channel: "whatsapp", status: "sent", provider: "twilio", sid: sidOut };
 }
 
@@ -136,10 +164,11 @@ async function sendMeta({ to, text }) {
   });
   const raw = await res.text();
   if (!res.ok) {
-    console.error(`[whatsapp:meta] ${res.status} ${raw}`);
-    return { channel: "whatsapp", status: "error", code: res.status, detail: raw.slice(0, 300) };
+    const detail = providerErrorDetail(raw, res.status);
+    logger.error({ provider: "meta", status: res.status, detail }, "whatsapp send failed");
+    return { channel: "whatsapp", status: "error", code: res.status, detail };
   }
-  console.info(`[whatsapp:meta] sent to=${dest}`);
+  logger.info({ provider: "meta", to: logger.maskDestination(dest) }, "whatsapp sent");
   return { channel: "whatsapp", status: "sent", provider: "meta" };
 }
 
@@ -147,7 +176,7 @@ async function sendGeneric({ to, text }) {
   const url = process.env.WHATSAPP_API_URL;
   const token = process.env.WHATSAPP_API_TOKEN;
   if (!url || !token) {
-    console.info(`[whatsapp:stub] to=${to} text=${text}`);
+    logger.info({ to: logger.maskDestination(to) }, "whatsapp stub");
     return { channel: "whatsapp", status: "stubbed", reason: "no provider configured" };
   }
 
@@ -161,8 +190,9 @@ async function sendGeneric({ to, text }) {
   });
   if (!res.ok) {
     const body = await res.text();
-    console.error(`[whatsapp:generic] ${res.status}: ${body}`);
-    return { channel: "whatsapp", status: "error", code: res.status };
+    const detail = providerErrorDetail(body, res.status);
+    logger.error({ provider: "generic", status: res.status, detail }, "whatsapp send failed");
+    return { channel: "whatsapp", status: "error", code: res.status, detail };
   }
   return { channel: "whatsapp", status: "sent", provider: "generic" };
 }
@@ -184,12 +214,10 @@ async function send({ to, text }) {
     if (process.env.WHATSAPP_API_URL && process.env.WHATSAPP_API_TOKEN) {
       return await sendGeneric({ to, text });
     }
-    console.info(
-      `[whatsapp:stub] to=${to} (set WHATSAPP_PROVIDER=baileys|twilio|meta or WHATSAPP_API_URL)`
-    );
+    logger.info({ to: logger.maskDestination(to) }, "whatsapp stub");
     return { channel: "whatsapp", status: "stubbed", reason: "no provider configured" };
   } catch (e) {
-    console.error("[whatsapp] send failed", e.message);
+    logger.error({ err: e.message }, "whatsapp send failed");
     return { channel: "whatsapp", status: "error", detail: e.message };
   }
 }

@@ -7,6 +7,20 @@
  *   TWILIO_SMS_FROM  (E.164, e.g. +18005551234) — or TWILIO_FROM without whatsapp: prefix
  */
 
+const logger = require("../logger");
+
+function providerErrorDetail(raw, status) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.message || parsed.code)) {
+      return `provider error ${parsed.code || status}: ${parsed.message || "request failed"}`.slice(0, 300);
+    }
+  } catch (_) {
+    /* plain text */
+  }
+  return logger.redactString(String(raw || "")).slice(0, 300);
+}
+
 function normalizeE164(to) {
   let n = String(to || "").trim().replace(/\s+/g, "");
   if (!n) return n;
@@ -36,9 +50,7 @@ async function send({ to, text }) {
   const from = twilioSmsFrom();
 
   if (!sid || !token || !from) {
-    console.info(
-      `[sms:stub] to=${to} (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SMS_FROM)`
-    );
+    logger.info({ to: logger.maskDestination(to) }, "sms stub");
     return {
       channel: "sms",
       status: "stubbed",
@@ -67,8 +79,9 @@ async function send({ to, text }) {
 
   const raw = await res.text();
   if (!res.ok) {
-    console.error(`[sms:twilio] ${res.status} ${raw}`);
-    return { channel: "sms", status: "error", code: res.status, detail: raw.slice(0, 300) };
+    const detail = providerErrorDetail(raw, res.status);
+    logger.error({ provider: "twilio", status: res.status, detail }, "sms send failed");
+    return { channel: "sms", status: "error", code: res.status, detail };
   }
 
   let sidOut = null;
@@ -77,7 +90,10 @@ async function send({ to, text }) {
   } catch (_) {
     /* ignore */
   }
-  console.info(`[sms:twilio] sent to=${bodyTo} sid=${sidOut || "?"}`);
+  logger.info(
+    { provider: "twilio", to: logger.maskDestination(bodyTo), sid: sidOut || null },
+    "sms sent"
+  );
   return { channel: "sms", status: "sent", provider: "twilio", sid: sidOut };
 }
 

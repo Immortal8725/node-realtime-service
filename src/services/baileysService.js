@@ -12,6 +12,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const logger = require("../logger");
 
 let sock = null;
 let starting = null;
@@ -69,7 +70,7 @@ function getStatus() {
     hasQr: Boolean(lastQr),
     qr: connectionStatus === "qr" ? lastQr : null,
     authDir: authDir(),
-    lastError: lastError || null,
+    lastError: lastError ? logger.redactString(String(lastError)).slice(0, 200) : null,
   };
 }
 
@@ -101,9 +102,9 @@ async function start() {
     try {
       const latest = await fetchLatestBaileysVersion();
       version = latest.version;
-      console.info(`[baileys] WA version ${version?.join?.(".") || version}`);
+      logger.info({ version: version?.join?.(".") || version }, "baileys WA version");
     } catch (e) {
-      console.warn("[baileys] fetchLatestBaileysVersion failed, using default:", e.message);
+      logger.warn({ err: e.message }, "baileys fetchLatestBaileysVersion failed, using default");
     }
 
     const silentLogger = {
@@ -142,14 +143,16 @@ async function start() {
       if (qr) {
         lastQr = qr;
         connectionStatus = "qr";
-        console.info("[baileys] Scan QR with the clinic WhatsApp (Linked devices).");
-        console.info("[baileys] QR also available at GET /internal/whatsapp/status (X-Internal-Key).");
+        logger.info(
+          {},
+          "baileys QR ready — scan with the clinic WhatsApp (Linked devices) or GET /internal/whatsapp/status"
+        );
         if (printQrEnabled()) {
           try {
             const qrcode = require("qrcode-terminal");
             qrcode.generate(qr, { small: true });
           } catch (_) {
-            console.info("[baileys] qrcode-terminal unavailable; use /internal/whatsapp/status");
+            logger.info({}, "baileys qrcode-terminal unavailable; use /internal/whatsapp/status");
           }
         }
       }
@@ -161,7 +164,7 @@ async function start() {
           sock?.user?.id?.split?.(":")?.[0] ||
           sock?.user?.id?.split?.("@")?.[0] ||
           null;
-        console.info(`[baileys] connected as ${linkedPhone || "unknown"}`);
+        logger.info({ linked: Boolean(linkedPhone) }, "baileys connected");
       }
 
       if (connection === "close") {
@@ -175,16 +178,16 @@ async function start() {
           statusCode === 401;
         lastError = lastDisconnect?.error?.message || `closed status=${statusCode}`;
         sock = null;
-        console.warn(`[baileys] connection closed: ${lastError}`);
+        logger.warn({ err: lastError }, "baileys connection closed");
 
         if (!loggedOut && isEnabled()) {
-          console.info("[baileys] reconnecting in 3s…");
+          logger.info({}, "baileys reconnecting");
           setTimeout(() => {
             starting = null;
-            start().catch((e) => console.error("[baileys] reconnect failed", e.message));
+            start().catch((e) => logger.error({ err: e.message }, "baileys reconnect failed"));
           }, 3000);
         } else if (loggedOut) {
-          console.error("[baileys] logged out — delete auth dir and scan a new QR");
+          logger.error({}, "baileys logged out — delete auth dir and scan a new QR");
         }
       }
     });
@@ -196,7 +199,7 @@ async function start() {
     sock = null;
     connectionStatus = "close";
     lastError = e.message;
-    console.error("[baileys] start failed", e);
+    logger.error({ err: e.message }, "baileys start failed");
     throw e;
   });
 
@@ -265,10 +268,10 @@ async function send({ to, text }) {
       await sock.sendMessage(jid, { text: String(text) });
     }
 
-    console.info(`[baileys] sent OTP to=${jid}`);
+    logger.info({ provider: "baileys", to: logger.maskDestination(jid) }, "whatsapp sent");
     return { channel: "whatsapp", status: "sent", provider: "baileys", to: jid };
   } catch (e) {
-    console.error(`[baileys] send failed to=${jid}`, e.message);
+    logger.error({ provider: "baileys", err: e.message }, "whatsapp send failed");
     return {
       channel: "whatsapp",
       status: "error",
