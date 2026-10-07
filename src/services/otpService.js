@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const emailService = require("./emailService");
 const smsService = require("./smsService");
 const whatsappService = require("./whatsappService");
+const logger = require("../logger");
 
 const pending = new Map(); // key -> { hash, createdAt, attempts, meta }
 
@@ -93,7 +94,7 @@ async function sendOtp({
     // Split "to" as phone|email not supported; use dedicated fields via callers
     delivery = { channel: "both", status: "error", detail: "use separate send calls" };
   } else {
-    console.info(`[otp] unknown channel=${ch} to=${to}`);
+    logger.info({ channel: ch, to: logger.maskDestination(to) }, "otp unknown channel");
     delivery = { channel: ch, status: "stubbed" };
   }
 

@@ -25,7 +25,11 @@ function verifyToken(token) {
     throw err;
   }
   const raw = token.startsWith("Bearer ") ? token.slice(7) : token;
-  const payload = jwt.verify(raw, getJwtSecret());
+  // Shared JWT_SECRET is HMAC. Spring picks HS256/384/512 from key length.
+  // Reject "none" and asymmetric algs. Claim names are unchanged.
+  const payload = jwt.verify(raw, getJwtSecret(), {
+    algorithms: ["HS256", "HS384", "HS512"],
+  });
   const roles = Array.isArray(payload.roles)
     ? payload.roles.map((r) => String(r).replace(/^ROLE_/, ""))
     : [];
