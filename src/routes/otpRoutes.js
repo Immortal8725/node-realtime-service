@@ -23,9 +23,9 @@ router.post("/send", async (req, res) => {
  * POST /internal/otp/verify
  * body: { to, purpose, tenantId, code }
  */
-router.post("/verify", (req, res) => {
+router.post("/verify", async (req, res) => {
   try {
-    const result = otpService.verifyOtp(req.body || {});
+    const result = await otpService.verifyOtp(req.body || {});
     res.json(result);
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });

@@ -11,9 +11,10 @@ const { socketAuth, requireInternalKey } = require("./middleware/auth");
 const otpRoutes = require("./routes/otpRoutes");
 const { registerChat } = require("./socket/chat");
 const { registerNotifications, pushNotification } = require("./socket/notifications");
-const { parseOrigins, isOriginAllowed, validateConfig, shouldTrustProxy } = require("./config");
+const { isOriginAllowed, validateConfig, resolveAllowedOrigins, resolveTrustProxy } = require("./config");
 const logger = require("./logger");
 const { resolveEmailProvider } = require("./services/emailService");
+const { otpStoreMode } = require("./services/otpService");
 const pkg = require("../package.json");
 
 const PORT = Number(process.env.PORT || 4001);
@@ -107,6 +108,8 @@ function buildLimiter(limit) {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests" },
+    // Default key is req.ip passed through ipKeyGenerator. With trust proxy set
+    // to a hop count, that is the right-most untrusted hop, not X-Forwarded-For[0].
     skip: () => process.env.NODE_ENV === "test" || process.env.RATE_LIMIT_DISABLED === "true",
   });
 }
@@ -125,13 +128,14 @@ function errorHandler(err, req, res, next) {
 }
 
 function createApp() {
-  const origins = parseOrigins(process.env.CORS_ORIGINS);
+  const origins = resolveAllowedOrigins();
   const app = express();
   const server = http.createServer(app);
 
-  if (shouldTrustProxy()) {
-    app.set("trust proxy", 1);
-  }
+  // Hop count, never boolean true. req.ip is then the right-most untrusted
+  // X-Forwarded-For address. Railway's edge is one proxy.
+  const trustProxy = resolveTrustProxy();
+  app.set("trust proxy", trustProxy === false ? false : trustProxy);
   app.disable("x-powered-by");
 
   app.use(
@@ -163,10 +167,18 @@ function createApp() {
     res.json({
       status: "ok",
       service: "node-realtime-service",
+    });
+  });
+
+  app.get("/internal/health", requireInternalKey, (_req, res) => {
+    res.json({
+      status: "ok",
+      service: "node-realtime-service",
       version: pkg.version,
       uptimeSeconds: Math.floor(process.uptime()),
       redisAdapter: runtime.redis === "connected",
       redis: runtime.redis,
+      otpStore: otpStoreMode(),
       delivery: deliverySnapshot(),
       time: new Date().toISOString(),
     });
@@ -201,6 +213,14 @@ function createApp() {
   });
 
   app.use(errorHandler);
+
+  io.use((socket, next) => {
+    const origin = socket.handshake.headers?.origin;
+    if (!isOriginAllowed(origin, origins)) {
+      return next(new Error("Origin not allowed"));
+    }
+    return next();
+  });
 
   io.use(socketAuth);
 
@@ -354,12 +374,21 @@ async function start() {
 
   await new Promise((resolve) => ctx.server.listen(PORT, "0.0.0.0", resolve));
   const bound = ctx.server.address();
+  const otpStore = otpStoreMode();
+  if (otpStore === "memory") {
+    logger.warn(
+      {},
+      "OTP codes are stored in memory on this instance only. Set REDIS_URL to share them across replicas"
+    );
+  }
   logger.info(
     {
       port: bound && typeof bound === "object" ? bound.port : PORT,
       origins: ctx.origins,
       email: resolveEmailProvider(),
       version: pkg.version,
+      otpStore,
+      trustProxy: resolveTrustProxy(),
     },
     "listening"
   );
