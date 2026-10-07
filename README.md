@@ -66,7 +66,7 @@ Default: `http://localhost:4001`
 
 1. Set `WHATSAPP_PROVIDER=baileys` and start the service.
 2. Scan the QR printed in the console, or fetch it from `GET /internal/whatsapp/status` with header `X-Internal-Key`.
-3. Persist `BAILEYS_AUTH_DIR` (volume on Railway/VPS). Use **one replica** — one WhatsApp session per process.
+3. Persist `BAILEYS_AUTH_DIR` by attaching a Railway Volume mounted at `/app/data/baileys-auth` (service settings), or an equivalent mount on a VPS. Use **one replica** — one WhatsApp session per process.
 4. `GET /health` shows `delivery.whatsapp: "baileys"` and `delivery.baileys.connected`.
 
 Without a provider, OTP send returns `stubbed` (logged only). Spring can still pass `code` so the delivered digits match Paperless verify.
